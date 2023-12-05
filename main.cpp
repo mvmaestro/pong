@@ -1,5 +1,8 @@
 #include <SDL2/SDL.h>
+#include <iostream>
 #include <cmath>
+#include <random>
+
 const int thickness = 15;
 const int paddleHeight = 100;
 
@@ -7,6 +10,12 @@ struct Vector2
 {
 	float x;
 	float y;
+};
+
+struct Ball
+{
+	Vector2 ballPos;
+	Vector2 ballVel;
 };
 
 class Game
@@ -30,6 +39,8 @@ private:
 	Vector2 mBallVelocity;
 	int mPaddleLeftDir;
 	int mPaddleRightDir;
+
+	std::vector<Ball> mBalls;
 
 	bool mIsRunning;
 	Uint32 mTicksCount;
@@ -84,6 +95,22 @@ bool Game::Initialize()
 
 	mBallPos.x = 1024.0f/2.0f;
 	mBallPos.y = 768.0f/2.0f;
+
+	std::random_device rd;
+
+	// Initialize Mersenne Twister pseudo-random number generator
+    std::mt19937 gen(rd());
+
+    // Generate pseudo-random numbers
+    // uniformly distributed in range (-250, 250)
+    std::uniform_int_distribution<> dis(-250, 250);
+
+	for (int i = 0; i < 100; i++)
+	{
+		Ball ball{1024.0f/2.0f,768.0f/2.0f, static_cast<float>(dis(gen)), static_cast<float>(dis(gen)),};
+		mBalls.push_back(ball);
+	}
+	
 	mPaddleLeftPos.x = 10.0f;
 	mPaddleLeftPos.y = 768.0f/2.0f;
 	mPaddleRightPos.x = 1024.0f-10.0f-thickness;
@@ -209,11 +236,6 @@ void Game::UpdateGame()
 		mBallVelocity.y *= -1;
 	}
 
-	if (mBallPos.x >= 1024 - thickness && mBallVelocity.x > 0.0f)
-	{
-		mBallVelocity.x *= -1;
-	}
-
 	if (mBallPos.y >= 768 - thickness && mBallVelocity.y > 0.0f)
 	{
 		mBallVelocity.y *= -1;
@@ -244,6 +266,59 @@ void Game::UpdateGame()
 	{
 		mBallVelocity.x *= -1.0f;
 	}
+
+
+	for (Ball& ball:mBalls)
+	{
+		ball.ballPos.x += ball.ballVel.x * deltaTime;
+		ball.ballPos.y += ball.ballVel.y * deltaTime;
+
+		if (ball.ballVel.x < 50 && ball.ballVel.x > 0)
+		{
+			ball.ballVel.x += 50;
+		}
+
+		if (ball.ballVel.x < 0 && ball.ballVel.x > -50)
+		{
+			ball.ballVel.x -= 50;
+		}
+
+		if (ball.ballPos.y <= thickness && ball.ballVel.y < 0.0f)
+		{
+			ball.ballVel.y *= -1;
+		}
+
+		if (ball.ballPos.y >= 768 - thickness && ball.ballVel.y > 0.0f)
+		{
+			ball.ballVel.y *= -1;
+		}
+
+		diff = std::abs(ball.ballPos.y - mPaddleLeftPos.y);
+		if (
+			// Our y-difference is small enough
+			diff <= paddleHeight / 2.0f &&
+			// We are in the correct x-position
+			ball.ballPos.x <= 25.0f && ball.ballPos.x >= 20.0f &&
+			// The ball.ballPos.is moving to the left
+			ball.ballVel.x < 0.0f
+			)
+		{
+			ball.ballVel.x *= -1.0f;
+		}
+
+		diff = std::abs(ball.ballPos.y - mPaddleRightPos.y);
+		if (
+			// Our y-difference is small enough
+			diff <= paddleHeight / 2.0f &&
+			// We are in the correct x-position
+			ball.ballPos.x >= 1024.0f - 25.0f && ball.ballPos.x <= 1024.0f - 20.0f &&
+			// The ball.ballPos.is moving to the right
+			ball.ballVel.x > 0.0f
+			)
+		{
+			ball.ballVel.x *= -1.0f;
+		}
+	}
 }
 
 void Game::GenerateOutput()
@@ -270,6 +345,13 @@ void Game::GenerateOutput()
 		thickness
 	};
 	SDL_RenderFillRect(mRenderer, &ball);
+
+	for (Ball mBall:mBalls)
+	{
+		ball.x = static_cast<int>(mBall.ballPos.x - thickness/2);
+		ball.y = static_cast<int>(mBall.ballPos.y - thickness/2);
+		SDL_RenderFillRect(mRenderer, &ball);
+	}
 
 	// Draw a paddle
 	SDL_Rect paddle{
