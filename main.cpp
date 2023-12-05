@@ -24,10 +24,12 @@ private:
 	SDL_Window* mWindow;
 	SDL_Renderer* mRenderer;
 
-	Vector2 mPaddlePos;
+	Vector2 mPaddleLeftPos;
+	Vector2 mPaddleRightPos;
 	Vector2 mBallPos;
 	Vector2 mBallVelocity;
-	int mPaddleDir;
+	int mPaddleLeftDir;
+	int mPaddleRightDir;
 
 	bool mIsRunning;
 	Uint32 mTicksCount;
@@ -39,7 +41,8 @@ Game::Game()
 	mRenderer = nullptr;
 	mIsRunning = true;
 	mTicksCount = 0;
-	mPaddleDir = 0;
+	mPaddleLeftDir = 0;
+	mPaddleRightDir = 0;
 }
 
 bool Game::Initialize()
@@ -81,8 +84,10 @@ bool Game::Initialize()
 
 	mBallPos.x = 1024.0f/2.0f;
 	mBallPos.y = 768.0f/2.0f;
-	mPaddlePos.x = 10.0f;
-	mPaddlePos.y = 768.0f/2.0f;
+	mPaddleLeftPos.x = 10.0f;
+	mPaddleLeftPos.y = 768.0f/2.0f;
+	mPaddleRightPos.x = 1024.0f-10.0f-thickness;
+	mPaddleRightPos.y = 768.0f/2.0f;
 	mBallVelocity.x = -215.0f;
 	mBallVelocity.y = 235.0f;
 
@@ -126,14 +131,24 @@ void Game::ProcessInput()
 		mIsRunning = false;
 	}
 
-	mPaddleDir = 0;
+	mPaddleLeftDir = 0;
 	if (state[SDL_SCANCODE_W])
 	{
-		mPaddleDir -= 1;
+		mPaddleLeftDir -= 1;
 	}
 	if (state[SDL_SCANCODE_S])
 	{
-		mPaddleDir += 1;
+		mPaddleLeftDir += 1;
+	}
+
+	mPaddleRightDir = 0;
+	if (state[SDL_SCANCODE_I])
+	{
+		mPaddleRightDir -= 1;
+	}
+	if (state[SDL_SCANCODE_K])
+	{
+		mPaddleRightDir += 1;
 	}
 
 }
@@ -155,18 +170,34 @@ void Game::UpdateGame()
 	// Update tick counts (for next frame)
 	mTicksCount = SDL_GetTicks();
 
-	if (mPaddleDir != 0)
+	if (mPaddleLeftDir != 0)
 	{
-		mPaddlePos.y += mPaddleDir * 300.0f * deltaTime;
+		mPaddleLeftPos.y += mPaddleLeftDir * 300.0f * deltaTime;
 
 		// Make sure the paddle doesnt move off screen
-		if (mPaddlePos.y < (paddleHeight/2.0f + thickness))
+		if (mPaddleLeftPos.y < (paddleHeight/2.0f + thickness))
 		{
-			mPaddlePos.y = paddleHeight/2.0f + thickness;
+			mPaddleLeftPos.y = paddleHeight/2.0f + thickness;
 		}
-		else if (mPaddlePos.y > (768.0f - paddleHeight/2.0f - thickness))
+		else if (mPaddleLeftPos.y > (768.0f - paddleHeight/2.0f - thickness))
 		{
-			mPaddlePos.y = 768.0f - paddleHeight/2.0f - thickness;
+			mPaddleLeftPos.y = 768.0f - paddleHeight/2.0f - thickness;
+		}
+	}
+
+	
+	if (mPaddleRightDir != 0)
+	{
+		mPaddleRightPos.y += mPaddleRightDir * 300.0f * deltaTime;
+
+		// Make sure the paddle doesnt move off screen
+		if (mPaddleRightPos.y < (paddleHeight/2.0f + thickness))
+		{
+			mPaddleRightPos.y = paddleHeight/2.0f + thickness;
+		}
+		else if (mPaddleRightPos.y > (768.0f - paddleHeight/2.0f - thickness))
+		{
+			mPaddleRightPos.y = 768.0f - paddleHeight/2.0f - thickness;
 		}
 	}
 
@@ -188,7 +219,7 @@ void Game::UpdateGame()
 		mBallVelocity.y *= -1;
 	}
 
-	float diff = std::abs(mBallPos.y - mPaddlePos.y);
+	float diff = std::abs(mBallPos.y - mPaddleLeftPos.y);
 	if (
 		// Our y-difference is small enough
 		diff <= paddleHeight / 2.0f &&
@@ -201,6 +232,18 @@ void Game::UpdateGame()
 		mBallVelocity.x *= -1.0f;
 	}
 
+	diff = std::abs(mBallPos.y - mPaddleRightPos.y);
+	if (
+		// Our y-difference is small enough
+		diff <= paddleHeight / 2.0f &&
+		// We are in the correct x-position
+		mBallPos.x >= 1024.0f - 25.0f && mBallPos.x <= 1024.0f - 20.0f &&
+		// The ball is moving to the right
+		mBallVelocity.x > 0.0f
+		)
+	{
+		mBallVelocity.x *= -1.0f;
+	}
 }
 
 void Game::GenerateOutput()
@@ -219,13 +262,6 @@ void Game::GenerateOutput()
 	wall.y = 768-thickness;
 	SDL_RenderFillRect(mRenderer, &wall);
 
-	// Draw wall to the right of the screen
-	wall.y = 0;
-	wall.x = 1024 - thickness;
-	wall.w = thickness;
-	wall.h = 768;
-	SDL_RenderFillRect(mRenderer, &wall);
-	
 	// Draw a ball in the middle of the screen
 	SDL_Rect ball{
 		static_cast<int>(mBallPos.x - thickness/2),
@@ -237,11 +273,15 @@ void Game::GenerateOutput()
 
 	// Draw a paddle
 	SDL_Rect paddle{
-		static_cast<int>(mPaddlePos.x),
-		static_cast<int>(mPaddlePos.y - paddleHeight/2),
+		static_cast<int>(mPaddleLeftPos.x),
+		static_cast<int>(mPaddleLeftPos.y - paddleHeight/2),
 		thickness,
 		paddleHeight
 	};
+	SDL_RenderFillRect(mRenderer, &paddle);
+
+	paddle.x = mPaddleRightPos.x;
+	paddle.y = mPaddleRightPos.y - paddleHeight/2;
 	SDL_RenderFillRect(mRenderer, &paddle);
 
 	SDL_RenderPresent(mRenderer);
